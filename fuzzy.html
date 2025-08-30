@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fuzzy-Logic Humidifier Demo</title>
+<style>
+  :root{
+    --bg:#0f172a;        /* page background */
+    --card:#111827;      /* panel background */
+    --fg:#e5e7eb;        /* text */
+    --muted:#9ca3af;
+    --accent:#60a5fa;
+    --mist:0.7;          /* 0.0 – 1.0 strength (set by JS) */
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:radial-gradient(80vw 80vh at 50% 20%, #111827 0%, var(--bg) 55%);
+    color:var(--fg);
+    font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+    display:grid;
+    place-items:center;
+    padding:24px;
+  }
+
+  .panel{
+    width:min(900px, 92vw);
+    background:color-mix(in oklab, var(--card) 88%, black);
+    border:1px solid #1f2937;
+    border-radius:20px;
+    padding:28px clamp(22px, 4vw, 36px);
+    box-shadow:0 20px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+
+  .header{
+    display:flex; gap:16px; align-items:center; justify-content:center; margin-bottom:10px;
+  }
+  .header h1{
+    margin:0;
+    font-size:clamp(20px, 3.6vw, 28px);
+    letter-spacing:.2px;
+  }
+  .sub{
+    text-align:center; color:var(--muted); margin:6px 0 22px;
+  }
+
+  .stage{
+    position:relative;
+    display:grid;
+    place-items:center;
+    margin: 6px auto 18px;
+    aspect-ratio: 1.6 / 1;
+    width:min(560px, 86vw);
+    border-radius:18px;
+    background:
+      radial-gradient(140px 60px at 50% 92%, rgba(0,0,0,.35), transparent 55%),
+      linear-gradient(180deg, rgba(255,255,255,.02), transparent 14%);
+    overflow:hidden;
+  }
+
+  /* Center caption badge */
+  .badge{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    font-size:13px; letter-spacing:.2px; color:#cbd5e1;
+    background:rgba(2,6,23,.55);
+    border:1px solid rgba(148,163,184,.16);
+    padding:6px 10px; border-radius:999px; backdrop-filter: blur(6px);
+  }
+
+  /* Humidifier SVG sizing */
+  .humidifier{ width:min(320px, 60%); }
+
+  /* Mist animation */
+  .mist{
+    opacity: clamp(0, var(--mist), 1);
+    animation: rise 4s linear infinite;
+    filter: blur(1.2px);
+  }
+  .mist.m2{ animation-duration: 5.8s; animation-delay: -1.2s; transform: translateX(-18px); opacity: calc(clamp(0, var(--mist), 1) * .85); }
+  .mist.m3{ animation-duration: 6.7s; animation-delay: -2.1s; transform: translateX(18px);  opacity: calc(clamp(0, var(--mist), 1) * .7);  }
+
+  @keyframes rise{
+    0%   { transform: translateY(0) scale(1);        opacity: calc(var(--mist) * .75 + .1);}
+    70%  { transform: translateY(-120px) scale(1.06); opacity: calc(var(--mist) * .6 + .1);}
+    100% { transform: translateY(-180px) scale(1.12); opacity: 0;}
+  }
+
+  /* Controls */
+  .controls{
+    display:grid; gap:14px; margin-top:12px;
+  }
+  .row{
+    display:grid; gap:10px;
+    grid-template-columns: 1fr auto;
+    align-items:center;
+  }
+  .label{ color:#cbd5e1; font-size:14px}
+  .value{ font-variant-numeric: tabular-nums; font-weight:600; color:#fff}
+
+  input[type="range"]{
+    -webkit-appearance:none; appearance:none; width:100%;
+    background:transparent;
+  }
+  input[type="range"]::-webkit-slider-runnable-track{
+    height:8px; background: #1f2937; border-radius:999px; border:1px solid #334155;
+  }
+  input[type="range"]::-moz-range-track{
+    height:8px; background:#1f2937; border-radius:999px; border:1px solid #334155;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none;
+    width:22px; height:22px; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #ffffff, #c7d2fe 70%);
+    border: 1px solid #64748b; margin-top:-7px; cursor:pointer;
+    box-shadow: 0 6px 16px rgba(99,102,241,.35);
+  }
+  input[type="range"]::-moz-range-thumb{
+    width:22px; height:22px; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #ffffff, #c7d2fe 70%);
+    border: 1px solid #64748b; cursor:pointer;
+    box-shadow: 0 6px 16px rgba(99,102,241,.35);
+  }
+
+  .explain{
+    color:#cbd5e1; font-size:14px; line-height:1.5; margin-top:4px;
+  }
+  .pill{
+    display:inline-block; padding:2px 8px; border-radius:999px; background:#0b1220; border:1px solid #1f2a44; color:#cde1ff; font-size:12px; margin-right:6px;
+  }
+  .footer{
+    margin-top:18px; color:#9aa7bd; font-size:12px; text-align:center;
+  }
+
+</style>
+</head>
+<body>
+  <div class="panel" role="main" aria-label="Fuzzy-logic humidifier demo">
+    <div class="header">
+      <h1>Humidifier (Fuzzy-Logic Demo)</h1>
+    </div>
+    <p class="sub">The humidifier stays <em>centered</em>. Move the humidity slider to see the moisture output change smoothly.</p>
+
+    <div class="stage" aria-live="polite">
+      <div class="badge" id="badge">Room Humidity: 45%</div>
+
+      <!-- Simple, friendly SVG humidifier -->
+      <svg class="humidifier" viewBox="0 0 220 340" aria-label="Humidifier">
+        <!-- Mist (animated) -->
+        <g transform="translate(110,110)">
+          <path class="mist" d="M0 0 C -18 -24, -10 -48, 0 -68 C 10 -88, 16 -116, 4 -138" fill="none" stroke="url(#mistGrad)" stroke-width="10" stroke-linecap="round"/>
+          <path class="mist m2" d="M0 0 C 12 -22, 14 -46, 2 -70 C -8 -94, -10 -116, 0 -138" fill="none" stroke="url(#mistGrad)" stroke-width="8" stroke-linecap="round"/>
+          <path class="mist m3" d="M0 0 C -8 -16, 6 -40, 10 -64 C 14 -88, 8 -116, -2 -138" fill="none" stroke="url(#mistGrad)" stroke-width="6" stroke-linecap="round"/>
+        </g>
+
+        <!-- Body -->
+        <defs>
+          <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#9fb7ff"/>
+            <stop offset="100%" stop-color="#6b7cff"/>
+          </linearGradient>
+          <linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#dbeafe" stop-opacity=".85"/>
+            <stop offset="100%" stop-color="#93c5fd" stop-opacity=".4"/>
+          </linearGradient>
+          <linearGradient id="mistGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#e6f0ff" stop-opacity=".95"/>
+            <stop offset="100%" stop-color="#e6f0ff" stop-opacity=".15"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Base shadow -->
+        <ellipse cx="110" cy="300" rx="78" ry="12" fill="#0b1323" opacity=".55"/>
+
+        <!-- Outer body -->
+        <rect x="48" y="130" width="124" height="150" rx="28" fill="url(#bodyGrad)"/>
+        <!-- Water tank glass -->
+        <rect x="56" y="138" width="108" height="110" rx="22" fill="url(#glassGrad)"/>
+        <!-- Water level -->
+        <rect id="water" x="56" y="190" width="108" height="58" rx="0" fill="#60a5fa" opacity=".35"/>
+
+        <!-- Top cap -->
+        <rect x="72" y="118" width="76" height="22" rx="11" fill="#aab6ff"/>
+        <circle cx="110" cy="120" r="8" fill="#e5edff"/>
+
+        <!-- Dial -->
+        <circle cx="110" cy="260" r="20" fill="#101626" stroke="#30406a" stroke-width="2"/>
+        <circle id="dial" cx="110" cy="260" r="12" fill="#bcd0ff" />
+      </svg>
+    </div>
+
+    <div class="controls" aria-label="Controls">
+      <div class="row">
+        <div class="label">Room Humidity (%)</div>
+        <div class="value" id="humVal">45%</div>
+      </div>
+      <input id="hum" type="range" min="20" max="90" value="45" />
+      <div class="explain">
+        <span class="pill">Fuzzy Inputs: humidity, rate-of-change</span>
+        <span class="pill">Output: moisture (mist) power</span><br/>
+        Low humidity ⇒ more moisture. As humidity nears the target zone, output tapers smoothly (no harsh on/off).
+      </div>
+    </div>
+
+    <div class="footer">Tip: To “center the humidifier,” the layout uses CSS Grid’s <code>place-items:center</code> and a fixed aspect stage.</div>
+  </div>
+
+<script>
+/*
+  Simple fuzzy-like controller:
+  - Target comfort band: 45–55% RH
+  - Memberships: LOW, OK, HIGH
+  - Output: moisture power 0..1 (sets CSS var --mist)
+  - Also fake a "rate of change" term by smoothing last humidity to influence output slightly.
+*/
+
+const elRange = document.getElementById('hum');
+const elVal   = document.getElementById('humVal');
+const elBadge = document.getElementById('badge');
+const root    = document.documentElement;
+const water   = document.getElementById('water');
+const dial    = document.getElementById('dial');
+
+let lastRH = parseFloat(elRange.value);
+
+function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+function lerp(a,b,t){ return a + (b-a)*t; }
+
+// Triangular/shoulder memberships for RH
+function muLOW(rh){   // 0 at 55+, 1 at <=35, ramps between 35..55
+  if (rh >= 55) return 0;
+  if (rh <= 35) return 1;
+  return (55 - rh) / 20;
+}
+function muOK(rh){    // Peak around 50, fades 40..60
+  if (rh <= 40 || rh >= 60) return 0;
+  if (rh <= 50) return (rh - 40) / 10;
+  return (60 - rh) / 10;
+}
+function muHIGH(rh){  // 0 at <=45, 1 at >=70, ramps 45..70
+  if (rh <= 45) return 0;
+  if (rh >= 70) return 1;
+  return (rh - 45) / 25;
+}
+
+// Defuzzify by weighted average of rule consequents
+function computeMist(rh){
+  const low = muLOW(rh);
+  const ok  = muOK(rh);
+  const high= muHIGH(rh);
+
+  // Rule base (moisture power):
+  // IF LOW then High power (0.95)
+  // IF OK  then Medium (0.45)
+  // IF HIGH then Low (0.05)
+  let num = low*0.95 + ok*0.45 + high*0.05;
+  let den = low + ok + high + 1e-9;
+
+  // Add a tiny derivative term: if RH is rising, back off a bit; if falling, add a bit.
+  const d = clamp((rh - lastRH)/20, -0.08, 0.08);
+  const power = clamp(num/den - d, 0, 1);
+  lastRH = lerp(lastRH, rh, 0.6);
+  return power;
+}
+
+function update(){
+  const rh = parseFloat(elRange.value);
+  const power = computeMist(rh);
+
+  // Update UI text
+  elVal.textContent = rh.toFixed(0) + '%';
+  elBadge.textContent = 'Room Humidity: ' + rh.toFixed(0) + '%';
+
+  // Drive CSS variable for mist opacity
+  root.style.setProperty('--mist', power.toFixed(3));
+
+  // Visual: water level responds slowly to target (more power -> rising water usage look)
+  const waterHeight = clamp(30 + power*50, 30, 80); // px
+  water.setAttribute('y', 198 + (80 - waterHeight));
+  water.setAttribute('height', waterHeight);
+
+  // Dial grows slightly with power
+  const r = 10 + power*6;
+  dial.setAttribute('r', r.toFixed(2));
+}
+
+elRange.addEventListener('input', update);
+update();
+</script>
+</body>
+</html>

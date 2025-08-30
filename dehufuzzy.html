@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dehumidifier (Fuzzy-Logic • Floral Pink)</title>
+<style>
+  :root{
+    --bg1:#fff1f4;   /* light blush */
+    --bg2:#ffe4ee;   /* soft pink */
+    --card:#fff7fa;  /* panel */
+    --ink:#6b2b3d;   /* deep rose text */
+    --muted:#9b4b63; /* muted text */
+    --line:#f6c7d8;  /* borders */
+    --accent:#ff6fa3;/* hot pink accent */
+    --accent-2:#ffa7c7;
+    --fan:0.5;       /* computed by JS */
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    display:grid;
+    place-items:center;
+    padding:24px;
+    color:var(--ink);
+    font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial;
+    background:
+      radial-gradient(1200px 800px at 20% -10%, var(--bg2) 0%, transparent 60%),
+      radial-gradient(1200px 800px at 120% 10%, #ffeef5 0%, transparent 60%),
+      linear-gradient(180deg, var(--bg1), #fff);
+  }
+
+  /* floating floral corner decals (SVG bg) */
+  .flowers{
+    position:fixed; inset:0; pointer-events:none; z-index:-1; opacity:.25;
+    background:
+      url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320"><g fill="none" stroke="%23ff6fa3" stroke-width="2"><path d="M70 70c30 10 40 40 50 60 10-20 30-40 60-50-30-10-50-30-60-50-10 20-20 40-50 40z"/><circle cx="220" cy="90" r="16" fill="%23ffa7c7" opacity=".6"/><circle cx="250" cy="120" r="10" fill="%23ff6fa3" opacity=".5"/><path d="M40 260c24-8 32-26 40-40 8 14 20 32 44 40-24 8-36 20-44 36-8-14-16-28-40-36z" /></g></svg>') top left / 320px 320px no-repeat,
+      url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="0 0 360 360"><g fill="none" stroke="%23ffa7c7" stroke-width="2"><path d="M320 40c-28 10-40 36-50 54-10-18-26-40-54-50 28-10 42-24 54-44 10 18 20 34 50 40z"/><circle cx="90" cy="300" r="18" fill="%23ff8fb5" opacity=".6"/><circle cx="60" cy="270" r="9" fill="%23ff6fa3" opacity=".5"/></g></svg>') bottom right / 360px 360px no-repeat;
+  }
+
+  .panel{
+    width:min(920px, 94vw);
+    background:var(--card);
+    border:2px solid var(--line);
+    border-radius:22px;
+    padding:28px;
+    box-shadow:0 24px 60px rgba(255,111,163,.18), 0 2px 0 rgba(255,255,255,.9) inset;
+  }
+
+  .header{text-align:center; margin-bottom:12px}
+  .header h1{margin:0; font-size:clamp(22px, 4vw, 30px); letter-spacing:.3px}
+  .header p{color:var(--muted); margin:.35rem 0 0}
+
+  .stage{
+    position:relative;
+    display:grid; place-items:center;
+    margin:14px auto 20px;
+    aspect-ratio: 1.6/1;
+    width:min(580px, 90vw);
+    border-radius:20px;
+    background:
+      radial-gradient(220px 90px at 50% 92%, rgba(255,167,199,.35), transparent 60%),
+      linear-gradient(180deg, #fff, #ffe8f1 60%, #ffe0ec);
+    border:1.5px solid var(--line);
+    overflow:hidden;
+  }
+
+  .badge{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    font-size:13px; color:var(--ink);
+    background:rgba(255,240,247,.85);
+    border:1px solid var(--line);
+    padding:6px 10px; border-radius:999px;
+    box-shadow:0 6px 16px rgba(255,111,163,.15);
+  }
+
+  .dehumidifier{ width:min(340px, 62%); }
+
+  /* Fan visuals with pinks */
+  .fan-housing{ fill:#ffd9e9; stroke:#ffb4cf; stroke-width:6 }
+  .fan-blade{ fill:#ffa7c7 }
+  .fan-center{ fill:#ff6fa3; stroke:#ffb9d3; stroke-width:3 }
+
+  /* Rotate depending on power */
+  .blade{ transform-origin:50% 50%; animation: spin 2s linear infinite; }
+  @keyframes spin{ from{transform:rotate(0)} to{transform:rotate(360deg)} }
+
+  .controls{margin-top:14px}
+  .row{display:flex; justify-content:space-between; margin-bottom:8px}
+  .label{ color:var(--muted); font-size:14px}
+  .value{ font-weight:700; color:var(--ink)}
+
+  input[type="range"]{
+    width:100%; -webkit-appearance:none; appearance:none; background:transparent;
+  }
+  input[type="range"]::-webkit-slider-runnable-track{
+    height:10px; border-radius:999px;
+    background:linear-gradient(90deg, #ffd2e4, #ffb0cf);
+    border:1px solid var(--line);
+  }
+  input[type="range"]::-moz-range-track{
+    height:10px; border-radius:999px;
+    background:linear-gradient(90deg, #ffd2e4, #ffb0cf);
+    border:1px solid var(--line);
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:22px; height:22px; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #fff, #ffd3e6 70%);
+    border:2px solid #ff96bb; margin-top:-6px; box-shadow:0 6px 16px rgba(255,111,163,.35);
+  }
+  input[type="range"]::-moz-range-thumb{
+    width:22px; height:22px; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #fff, #ffd3e6 70%);
+    border:2px solid #ff96bb; box-shadow:0 6px 16px rgba(255,111,163,.35);
+  }
+
+  .rules{
+    font-size:14px; color:var(--muted); margin-top:10px;
+    background:#fff0f6; border:1px solid var(--line); border-radius:12px; padding:10px 12px;
+  }
+  .dot{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="flowers" aria-hidden="true"></div>
+
+<div class="panel" role="main" aria-label="Fuzzy-logic dehumidifier demo (floral)">
+  <div class="header">
+    <h1>Dehumidifier • Floral Pink</h1>
+    <p>Adjust humidity to see the drying power change smoothly.</p>
+  </div>
+
+  <div class="stage">
+    <div class="badge" id="badge">Room Humidity: 60%</div>
+
+    <svg class="dehumidifier" viewBox="0 0 220 340" aria-label="Dehumidifier">
+      <!-- Housing -->
+      <circle cx="110" cy="170" r="80" class="fan-housing"/>
+      <!-- Fan blades -->
+      <g id="fanGroup" class="blade">
+        <polygon points="110,170 110,90 128,100 118,170" class="fan-blade"/>
+        <polygon points="110,170 190,170 180,188 110,182" class="fan-blade"/>
+        <polygon points="110,170 110,250 92,240 102,170" class="fan-blade"/>
+        <polygon points="110,170 30,170 40,152 110,158" class="fan-blade"/>
+        <circle cx="110" cy="170" r="10" class="fan-center"/>
+      </g>
+      <!-- Base -->
+      <rect x="60" y="270" width="100" height="40" rx="8" fill="#ffc8dd" stroke="#ff9fbd" stroke-width="2"/>
+    </svg>
+  </div>
+
+  <div class="controls" aria-label="Controls">
+    <div class="row">
+      <div class="label">Room Humidity (%)</div>
+      <div class="value" id="humVal">60%</div>
+    </div>
+    <input id="hum" type="range" min="20" max="90" value="60" aria-label="Room Humidity Slider"/>
+    <div class="rules">
+      <strong>Fuzzy Rules:</strong><br>
+      <span class="dot">•</span> IF humidity is <em>HIGH</em> → strong drying<br>
+      <span class="dot">•</span> IF humidity is <em>COMFORTABLE</em> → medium drying<br>
+      <span class="dot">•</span> IF humidity is <em>LOW</em> → weak drying
+    </div>
+  </div>
+</div>
+
+<script>
+const elRange = document.getElementById('hum');
+const elVal   = document.getElementById('humVal');
+const elBadge = document.getElementById('badge');
+const fan     = document.getElementById('fanGroup');
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+// Membership functions (LOW / COMFORT / HIGH)
+function muLOW(rh){
+  if(rh>=50) return 0;
+  if(rh<=30) return 1;
+  return (50-rh)/20;
+}
+function muCOMFORT(rh){
+  if(rh<=40 || rh>=70) return 0;
+  if(rh<=55) return (rh-40)/15;
+  return (70-rh)/15;
+}
+function muHIGH(rh){
+  if(rh<=60) return 0;
+  if(rh>=80) return 1;
+  return (rh-60)/20;
+}
+
+// Weighted-average defuzzification
+function computeFan(rh){
+  const low=muLOW(rh), com=muCOMFORT(rh), high=muHIGH(rh);
+  const num = low*0.1 + com*0.5 + high*0.95; // weak, medium, strong
+  const den = low+com+high+1e-9;
+  return clamp(num/den,0,1);
+}
+
+function update(){
+  const rh = parseFloat(elRange.value);
+  const power = computeFan(rh);
+
+  elVal.textContent = rh.toFixed(0)+"%";
+  elBadge.textContent = "Room Humidity: "+rh.toFixed(0)+"%";
+
+  // Spin faster with higher power (2s → 0.4s)
+  fan.style.animationDuration = (2 - power*1.6).toFixed(2)+"s";
+
+  // Slight scale shimmer with power
+  fan.style.transform = "scale("+(1 + power*0.03).toFixed(3)+")";
+}
+
+elRange.addEventListener('input', update);
+update();
+</script>
+</body>
+</html>
