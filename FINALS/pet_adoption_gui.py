@@ -287,21 +287,212 @@ class PetAdoptionApp:
         else:
             self.evaluate()
 
+    def map_answers_to_clips(self):
+        """Map the GUI answers to CLIPS fact slots"""
+        # Map budget range to numeric values
+        budget_map = {
+            "Below ₱5,000": 2500,
+            "₱5,000 – ₱10,000": 7500,
+            "₱10,001 – ₱20,000": 15000,
+            "Above ₱20,000": 25000
+        }
+        
+        # Map experience to CLIPS format
+        experience_map = {
+            "Yes — it strongly affects approval, experienced adopters are prioritized": "yes",
+            "Yes — but it only helps us recommend suitable pets": "yes",
+            "No — past experience is not a major factor": "no",
+            "Sometimes — only for high-maintenance pets like dogs": "sometimes"
+        }
+        
+        # Map home type to CLIPS format
+        home_type_map = {
+            "Yes — it determines if the environment suits the pet's needs": "house",
+            "Yes — but only for large pets": "yard",
+            "No — as long as the adopter is responsible": "apartment",
+            "Sometimes — depending on the pet's behavior or size": "apartment"
+        }
+        
+        # Map available space
+        space_map = {
+            "Small — limited indoor space, suitable for cats or small pets": "small",
+            "Medium — small house with enough room for movement": "medium",
+            "Large — spacious house or yard for active pets like dogs": "large"
+        }
+        
+        # Map pet type
+        pet_map = {
+            "Dogs — need more space and time": "dog",
+            "Cats — suitable for small homes or apartments": "cat",
+            "Rabbits — need moderate space and care": "rabbit",
+            "Others (birds, hamsters, etc.) — minimal space required": "other"
+        }
+        
+        # Map children/pets
+        children_map = {
+            "Yes — it's a major factor; some pets don't get along with kids or other animals": "yes",
+            "Yes — but only for aggressive or large pets": "sometimes",
+            "No — we assume the adopter will adjust": "no",
+            "Sometimes — depends on the pet's temperament": "sometimes"
+        }
+        
+        # Map monthly budget based on affordability
+        monthly_budget_map = {
+            "Ask their estimated monthly budget": 5000,
+            "Review income or employment status": 4000,
+            "Ask lifestyle-related questions (shopping, travel habits, etc.)": 3000,
+            "We don't formally check — we trust the adopter's honesty": 2000
+        }
+        
+        # Map alone hours to numeric
+        hours_map = {
+            "0–4 hours — ideal": 2,
+            "5–8 hours — acceptable for independent pets": 6,
+            "9–12 hours — only for certain types (e.g., cats)": 10,
+            "More than 12 hours — not recommended": 14
+        }
+        
+        # Check for disqualifiers
+        has_disqualifiers = self.answers.get('disqualifiers', '') != "None of the above"
+        
+        # Create the CLIPS fact
+        fact = {
+            'AdoptionBudget': budget_map.get(self.answers.get('budget_range', ''), 0),
+            'HasPetExperience': experience_map.get(self.answers.get('experience', ''), 'no'),
+            'HomeType': home_type_map.get(self.answers.get('home_type', ''), 'apartment'),
+            'AvailableSpace': space_map.get(self.answers.get('available_space', ''), 'medium'),
+            'PreferredPetType': pet_map.get(self.answers.get('pet_type', ''), 'cat'),
+            'HasChildrenOrOtherPets': children_map.get(self.answers.get('children_pets', ''), 'no'),
+            'MonthlyPetBudget': monthly_budget_map.get(self.answers.get('affordability', ''), 3000),
+            'AloneHours': hours_map.get(self.answers.get('alone_hours', ''), 8),
+            'AdopterHistoryGood': 'no' if has_disqualifiers else 'yes'
+        }
+        
+        return fact
+    
     def evaluate(self):
-        # Create a new window for results
+        try:
+            # Map answers to CLIPS format
+            clips_data = self.map_answers_to_clips()
+            
+            # Run CLIPS engine
+            env = clips.Environment()
+            env.load("pet_adoption.clp")
+            env.reset()
+            
+            # Create fact string for CLIPS
+            fact_str = f"""
+            (adopter
+                (AdoptionBudget {clips_data['AdoptionBudget']})
+                (HasPetExperience {clips_data['HasPetExperience']})
+                (HomeType {clips_data['HomeType']})
+                (AvailableSpace {clips_data['AvailableSpace']})
+                (PreferredPetType {clips_data['PreferredPetType']})
+                (HasChildrenOrOtherPets {clips_data['HasChildrenOrOtherPets']})
+                (MonthlyPetBudget {clips_data['MonthlyPetBudget']})
+                (AloneHours {clips_data['AloneHours']})
+                (AdopterHistoryGood {clips_data['AdopterHistoryGood']})
+            )
+            """
+            
+            # Assert the fact and run the rules
+            env.assert_string(fact_str)
+            env.run()
+            
+            # Get the decision fact
+            decision = None
+            for fact in env.facts():
+                if fact.template.name == 'decision':
+                    decision = dict(fact)
+                    break
+            
+            if not decision:
+                raise Exception("No decision was made by the expert system")
+            
+            # Show results
+            self.show_results(decision, clips_data)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while evaluating: {str(e)}")
+    
+    def show_results(self, decision, clips_data):
+        """Show the evaluation results in a new window"""
         result_window = tk.Toplevel(self.root)
         result_window.title("Adoption Evaluation Results")
-        result_window.geometry("600x500")
+        result_window.geometry("700x600")
         result_window.configure(bg="#ecf0f1")
         
+        # Create a canvas with scrollbar
+        canvas = tk.Canvas(result_window, bg="#ecf0f1")
+        scrollbar = tk.Scrollbar(result_window, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg="#ecf0f1")
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
         # Title
-        title = tk.Label(result_window, text="Adoption Evaluation Summary", 
+        title = tk.Label(scrollable_frame, text="🐾 Adoption Evaluation Results", 
                         font=("Arial", 16, "bold"), bg="#ecf0f1", fg="#2c3e50")
         title.pack(pady=10)
         
         # Create a frame for the results
-        result_frame = tk.Frame(result_window, bg="white", padx=20, pady=15)
+        result_frame = tk.Frame(scrollable_frame, bg="white", padx=20, pady=15)
         result_frame.pack(padx=20, pady=10, fill=tk.BOTH, expand=True)
+        
+        # Show decision
+        decision_text = "Approved" if "Approved" in decision.get('FinalDecision', '') else "Not Approved"
+        decision_color = "#27ae60" if decision_text == "Approved" else "#e74c3c"
+        
+        decision_label = tk.Label(
+            result_frame, 
+            text=f"Decision: {decision_text}",
+            font=("Arial", 14, "bold"),
+            fg=decision_color,
+            bg="white"
+        )
+        decision_label.pack(pady=10)
+        
+        # Show recommendations
+        tk.Label(
+            result_frame,
+            text="Recommendations:",
+            font=("Arial", 12, "bold"),
+            bg="white",
+            anchor="w"
+        ).pack(fill=tk.X, pady=(10, 5))
+        
+        recommendations = [
+            f"• {decision.get('AdoptionRecommendation', 'No specific recommendations')}",
+            f"• Space Match: {decision.get('SpaceMatch', 'Not specified')}",
+            f"• Experience Match: {decision.get('ExperienceMatch', 'Not specified')}",
+            f"• Care Budget: {decision.get('CareBudget', 'Not specified')}"
+        ]
+        
+        for rec in recommendations:
+            tk.Label(
+                result_frame,
+                text=rec,
+                font=("Arial", 11),
+                bg="white",
+                anchor="w"
+            ).pack(fill=tk.X, pady=2)
+        
+        # Add separator
+        tk.Frame(result_frame, height=2, bd=1, relief=tk.SUNKEN, bg="#bdc3c7").pack(fill=tk.X, pady=15)
+        
+        # Show user inputs
+        tk.Label(
+            result_frame,
+            text="Your Inputs:",
+            font=("Arial", 12, "bold"),
+            bg="white",
+            anchor="w"
+        ).pack(fill=tk.X, pady=(0, 5))
         
         # Map question keys to display labels
         field_labels = {
@@ -318,33 +509,50 @@ class PetAdoptionApp:
         }
         
         # Display each answer in the specified format
-        row = 0
         for key, label in field_labels.items():
             # Get the selected answer, or "Not answered" if not found
             answer = self.answers.get(key, "Not answered")
             
+            # Create a frame for each question-answer pair
+            frame = tk.Frame(result_frame, bg="white")
+            frame.pack(fill=tk.X, pady=2)
+            
             # Create label
-            lbl = tk.Label(result_frame, text=label, font=("Arial", 10, "bold"), 
-                          bg="white", fg="#2c3e50", anchor="w", width=30)
-            lbl.grid(row=row, column=0, sticky="w", pady=2)
+            tk.Label(
+                frame, 
+                text=label, 
+                font=("Arial", 10, "bold"), 
+                bg="white", 
+                fg="#2c3e50", 
+                width=30,
+                anchor="w"
+            ).pack(side=tk.LEFT)
             
             # Create answer display
-            ans = tk.Label(result_frame, text=f'"{answer}"', font=("Arial", 10), 
-                          bg="white", fg="#3498db", anchor="w")
-            ans.grid(row=row, column=1, sticky="w", pady=2)
-            
-            row += 1
+            tk.Label(
+                frame, 
+                text=f'"{answer}"', 
+                font=("Arial", 10), 
+                bg="white", 
+                fg="#3498db", 
+                anchor="w"
+            ).pack(side=tk.LEFT)
         
-        # Add a separator
-        separator = tk.Frame(result_window, height=2, bd=1, relief=tk.SUNKEN)
-        separator.pack(fill=tk.X, padx=20, pady=10)
+        # Pack the canvas and scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
         
         # Close button
-        close_btn = tk.Button(result_window, text="Close", 
-                             command=result_window.destroy,
-                             bg="#3498db", fg="white", 
-                             width=15, font=("Arial", 11, "bold"))
-        close_btn.pack(pady=10)
+        close_btn = tk.Button(
+            scrollable_frame, 
+            text="Close", 
+            command=result_window.destroy,
+            bg="#3498db", 
+            fg="white", 
+            width=15, 
+            font=("Arial", 11, "bold")
+        )
+        close_btn.pack(pady=20)
 
 
 # ============== RUN APP ==============
