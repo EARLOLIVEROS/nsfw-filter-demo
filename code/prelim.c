@@ -1,0 +1,180 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#define MAX_IP_LEN 16
+#define MAX_LINE 256
+
+// Structure for storing IPs
+typedef struct {
+    char **items;
+    int used;
+    int size;
+} IPList;
+
+// Create list
+IPList* makeList(int startSize) {
+    IPList *list = malloc(sizeof(IPList));
+    list->items = malloc(startSize * sizeof(char*));
+    list->used = 0;
+    list->size = startSize;
+    return list;
+}
+
+// Check if IP already in list
+int isInList(IPList *list, const char *ip) {
+    for(int i = 0; i < list->used; i++) {
+        if(strcmp(list->items[i], ip) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// Add IP if new
+void addToList(IPList *list, const char *ip) {
+
+    if(!isInList(list, ip)) {
+
+        // resize if full
+        if(list->used == list->size) {
+            list->size *= 2;
+            list->items = realloc(list->items, list->size * sizeof(char*));
+        }
+
+        list->items[list->used] = malloc(MAX_IP_LEN);
+        strcpy(list->items[list->used], ip);
+        list->used++;
+    }
+}
+
+// Get IP from one log line
+void getIP(const char *line, char *ipOut) {
+    int i = 0;
+
+    // skip date/time (YYYY-MM-DD HH:MM:SS)
+    while(line[i] != ' ' && line[i] != '\0') i++;
+    i++;
+    while(line[i] != ' ' && line[i] != '\0') i++;
+    i++;
+
+    int j = 0;
+    while(line[i] != ' ' && line[i] != '\0' && j < MAX_IP_LEN - 1) {
+        ipOut[j++] = line[i++];
+    }
+    ipOut[j] = '\0';
+}
+
+// Read file and count unique IPs
+int processFile(const char *fileName, IPList *list, double *timeUsed) {
+    FILE *f = fopen(fileName, "r");
+    if(!f) {
+        printf("Could not open file.\n");
+        return -1;
+    }
+
+    char line[MAX_LINE];
+    char ip[MAX_IP_LEN];
+
+    clock_t tStart = clock();
+
+    while(fgets(line, MAX_LINE, f)) {
+        getIP(line, ip);
+        addToList(list, ip);
+    }
+
+    clock_t tEnd = clock();
+    *timeUsed = (double)(tEnd - tStart) / CLOCKS_PER_SEC;
+
+    fclose(f);
+    return list->used;
+}
+
+// Free allocated memory
+void freeList(IPList *list) {
+    for(int i = 0; i < list->used; i++) {
+        free(list->items[i]);
+    }
+    free(list->items);
+    free(list);
+}
+
+// Show results
+void showOutput(IPList *list, int total, double timeUsed) {
+    printf("\n==============================\n");
+    printf("      LOG FILE REPORT\n");
+    printf("==============================\n");
+    printf("Total log lines read: %d\n", total);
+    printf("Unique IPs: %d\n", list->used);
+    printf("Time: %.6f sec\n", timeUsed);
+
+    long mem = (long)(list->used * sizeof(char*) + list->used * MAX_IP_LEN);
+    printf("Approx memory used: %ld bytes\n", mem);
+
+    printf("\nList of the IP Addresses:\n");
+    for(int i = 0; i < list->used && i < 20; i++) {
+        printf("%d. %s\n", i+1, list->items[i]);
+    }
+    if(list->used > 20) {
+        printf("... and %d more.\n", list->used - 20);
+    }
+}
+
+void complexityInfo() {
+    printf("\n==============================\n");
+    printf("      COMPLEXITY ANALYSIS\n");
+    printf("==============================\n");
+
+    printf("\nTIME COMPLEXITY (Worst-case)\n");
+    printf("----------------------------\n");
+    printf("Operation                     Cost\n");
+    printf("----------------------------  -----\n");
+    printf("Read log entries              O(n)\n");
+    printf("Check if IP already exists    O(n)\n");
+    printf("----------------------------  -----\n");
+    printf("Total Time Complexity         O(n^2)\n");
+
+    printf("\n\nSPACE COMPLEXITY\n");
+    printf("----------------------------\n");
+    printf("Let u = number of unique IPs\n");
+    printf("Space Required               O(u)\n");
+}
+
+// Main program
+int main() {
+
+    printf("==============================\n");
+    printf("  UNIQUE VISITOR ANALYZER\n");
+    printf("==============================\n");
+
+    char fileName[100];
+    printf("Enter log file name: ");
+    scanf("%s", fileName);
+
+    // Make list
+    IPList *list = makeList(100);
+
+    double timeUsed = 0;
+    int lineCount = 0;
+    char tempLine[MAX_LINE];
+
+    // Count total lines
+    FILE *temp = fopen(fileName, "r");
+    if(temp) {
+        while(fgets(tempLine, MAX_LINE, temp)) {
+            lineCount++;
+        }
+        fclose(temp);
+    }
+
+    int uniqueCount = processFile(fileName, list, &timeUsed);
+
+    if(uniqueCount >= 0) {
+        showOutput(list, lineCount, timeUsed);
+        complexityInfo();
+    }
+
+    freeList(list);
+    return 0;
+}
